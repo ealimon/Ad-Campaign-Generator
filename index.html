@@ -74,10 +74,22 @@
           <span id="spinner" class="loading-spinner ml-3 hidden" aria-hidden="true"></span>
         </button>
 
-        <button id="setApiKeyBtn" type="button"
-                class="bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 py-3 px-4 rounded-lg shadow-sm">
-          Set API Key
-        </button>
+        <div class="flex flex-col gap-2">
+          <button id="setApiKeyBtn" type="button"
+                  class="bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 py-3 px-4 rounded-lg shadow-sm">
+            Set API Key
+          </button>
+
+          <!-- New: direct link to obtain an API key -->
+          <a id="getApiKeyLink"
+             href="https://aistudio.google.com/app/apikey"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="text-xs text-center text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300 px-2"
+             aria-label="Get an API key (opens in new tab)">
+            Get an API key
+          </a>
+        </div>
       </div>
 
       <p id="formHelp" class="mt-4 text-sm text-slate-500 dark:text-slate-400">
@@ -110,8 +122,20 @@
   <div id="apiKeyModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
     <div class="bg-white dark:bg-slate-800 p-6 rounded-lg w-11/12 max-w-xl">
       <h3 class="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Enter API Key</h3>
-      <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">This stores the key only while the page is open. Do not paste credentials you are not comfortable storing in the browser session.</p>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+        This stores the key only while the page is open. Do not paste credentials you are not comfortable storing in the browser session.
+      </p>
+
+      <!-- New: helper link inside the modal -->
+      <p class="text-sm mb-3">
+        Need a key? Get one from Google AI Studio:
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 underline">Get an API key</a>
+        or see the developer docs:
+        <a href="https://developers.generativeai.google" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 underline">Generative AI docs</a>.
+      </p>
+
       <input id="apiKeyInput" class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 mb-4" placeholder="API key" />
+
       <div class="flex justify-end gap-3">
         <button id="apiKeyCancel" class="py-2 px-4 rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
         <button id="apiKeySave" class="py-2 px-4 rounded bg-blue-600 text-white">Save</button>
