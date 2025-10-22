@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Google Ads Campaign Builder — Improved</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .copy-button { transition: transform 0.15s ease; }
+    .copy-button:hover { transform: scale(1.05); }
+    .loading-spinner {
+      border: 3px solid rgba(255,255,255,0.25);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Smooth modal show/hide */
+    #messageBox { transition: transform .18s ease, opacity .18s ease; transform-origin: center; }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4 sm:p-8 flex flex-col items-center min-h-screen">
+
+  <main class="w-full max-w-4xl">
+    <section class="bg-white dark:bg-slate-800 shadow-xl rounded-2xl p-6 sm:p-10 mb-6">
+      <header class="mb-8 text-center">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">Ad Campaign Generator</h1>
+        <p class="text-slate-600 dark:text-slate-400">Enter your details and get instant ad copy suggestions.</p>
+      </header>
+
+      <form id="campaignForm" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" aria-describedby="formHelp" novalidate>
+        <div>
+          <label for="lawFirmName" class="block text-sm font-medium mb-1">Law Firm Name</label>
+          <input id="lawFirmName" name="lawFirmName" type="text" placeholder="e.g., Smith & Jones"
+                 class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                 required aria-required="true" />
+        </div>
+
+        <div>
+          <label for="websiteUrl" class="block text-sm font-medium mb-1">Landing Page URL</label>
+          <input id="websiteUrl" name="websiteUrl" type="url" inputmode="url" placeholder="e.g., https://www.lawfirm.com"
+                 class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                 required aria-required="true" />
+        </div>
+
+        <div>
+          <label for="adGroupName" class="block text-sm font-medium mb-1">Ad Group Name</label>
+          <input id="adGroupName" name="adGroupName" type="text" placeholder="e.g., Personal Injury"
+                 class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                 required aria-required="true" />
+        </div>
+      </form>
+
+      <div class="flex gap-3">
+        <button id="generateButton" type="button"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition transform hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed"
+                aria-live="polite" aria-busy="false">
+          <span id="buttonText">Generate Ad Copy</span>
+          <span id="spinner" class="loading-spinner ml-3 hidden" aria-hidden="true"></span>
+        </button>
+
+        <button id="setApiKeyBtn" type="button"
+                class="bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 py-3 px-4 rounded-lg shadow-sm">
+          Set API Key
+        </button>
+      </div>
+
+      <p id="formHelp" class="mt-4 text-sm text-slate-500 dark:text-slate-400">
+        Note: You must provide your own Google Generative Language API key. Click "Set API Key" to enter it (the key is held only in memory).
+      </p>
+    </section>
+
+    <section id="results" class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl hidden" aria-live="polite">
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold">Generated Ad Assets</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Click the copy icon to copy an item.</p>
+      </div>
+
+      <div id="sectionsContainer" class="space-y-8"></div>
+
+      <div class="mt-8">
+        <button id="exportCsv" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition transform hover:scale-105">
+          Export to CSV
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Message box for transient messages -->
+  <div id="messageBox" class="fixed top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-lg shadow-xl z-50 opacity-0 pointer-events-none">
+    <!-- text injected dynamically -->
+  </div>
+
+  <!-- Modal prompt for API key (simple in-memory input) -->
+  <div id="apiKeyModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-lg w-11/12 max-w-xl">
+      <h3 class="text-lg font-semibold mb-3 text-slate-900 dark:text-white">Enter API Key</h3>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">This stores the key only while the page is open. Do not paste credentials you are not comfortable storing in the browser session.</p>
+      <input id="apiKeyInput" class="w-full p-3 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 mb-4" placeholder="API key" />
+      <div class="flex justify-end gap-3">
+        <button id="apiKeyCancel" class="py-2 px-4 rounded bg-slate-200 dark:bg-slate-700">Cancel</button>
+        <button id="apiKeySave" class="py-2 px-4 rounded bg-blue-600 text-white">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Configuration =====
+    // IMPORTANT: Do not hardcode production API keys into client-side code.
+    // This script keeps the API key in memory only. For production, proxy requests server-side.
+    let apiKey = '';
+    const modelEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent';
+
+    // ===== Utilities =====
+    function showMessage(message, ms = 1500) {
+      const box = document.getElementById('messageBox');
+      box.textContent = message;
+      box.style.opacity = '1';
+      box.style.pointerEvents = 'auto';
+      setTimeout(() => {
+        box.style.opacity = '0';
+        box.style.pointerEvents = 'none';
+      }, ms);
+    }
+
+    function setLoading(isLoading) {
+      const btn = document.getElementById('generateButton');
+      const spinner = document.getElementById('spinner');
+      const buttonText = document.getElementById('buttonText');
+
+      btn.disabled = isLoading;
+      btn.setAttribute('aria-busy', String(isLoading));
+      if (isLoading) {
+        spinner.classList.remove('hidden');
+        buttonText.textContent = 'Generating...';
+      } else {
+        spinner.classList.add('hidden');
+        buttonText.textContent = 'Generate Ad Copy';
+      }
+    }
+
+    function escapeCsvValue(value) {
+      const v = String(value ?? '');
+      if (v.includes('"') || v.includes(',') || v.includes('\n')) {
+        return '"' + v.replace(/"/g, '""') + '"';
+      }
+      return v;
+    }
+
+    // Better parsing of markdown-like response:
+    // Accept headings like "## Headlines" (case-insensitive) and bullets started with "-", "*", "•"
+    function parseAdCopyText(text) {
+      const sectionMap = {
+        'headlines': 'headlines35',
+        'descriptions': 'descriptions90',
+        'callout extensions': 'callouts',
+        'callouts': 'callouts',
+        'callout': 'callouts',
+        'structured snippets': 'structuredSnippets',
+        'structured snippet': 'structuredSnippets',
+        'sitelink extensions': 'sitelinks',
+        'sitelinks': 'sitelinks',
+        'sitelink': 'sitelinks'
+      };
+
+      const lines = text.split(/\r?\n/);
+      const result = {};
+      let currentKey = null;
+
+      for (let raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+
+        // Heading detection (## or # or lines that are just the word)
+        const headingMatch = line.match(/^#{1,3}\s*(.+)$/) || line.match(/^([A-Za-z ]{3,40})\s*:?$/);
+        if (headingMatch) {
+          const heading = headingMatch[1].trim().toLowerCase();
+          const mapped = sectionMap[heading];
+          if (mapped) {
+            currentKey = mapped;
+            result[mapped] = result[mapped] || [];
+            continue;
+          }
+        }
+
+        // Bullet detection
+        const bulletMatch = line.match(/^[\-\*\u2022]\s+(.*)$/); // -, *, •
+        if (bulletMatch && currentKey) {
+          result[currentKey].push(bulletMatch[1].trim());
+          continue;
+        }
+
+        // Also accept plain lines under a currently selected section (fallback)
+        if (currentKey && line.length <= 120) {
+          result[currentKey].push(line);
+        }
+      }
+
+      return result;
+    }
+
+    // Renders a section to the DOM using safe text nodes (no innerHTML for content)
+    function renderSection(title, items, idSuffix) {
+      const container = document.createElement('section');
+      container.className = 'bg-slate-50 dark:bg-slate-700 rounded-lg p-4';
+      container.setAttribute('aria-label', title);
+
+      const header = document.createElement('div');
+      header.className = 'flex justify-between items-baseline mb-3';
+      const h = document.createElement('h3');
+      h.className = 'text-lg font-semibold';
+      h.textContent = title;
+      const count = document.createElement('span');
+      count.className = 'text-sm text-slate-500 dark:text-slate-400';
+      count.textContent = `${items.length} items`;
+      header.appendChild(h);
+      header.appendChild(count);
+      container.appendChild(header);
+
+      const list = document.createElement('div');
+      list.className = 'space-y-2';
+      items.forEach((text, idx) => {
+        const row = document.createElement('div');
+        row.className = 'relative flex items-center justify-between bg-white dark:bg-slate-800 rounded-md p-3';
+
+        const textNode = document.createElement('div');
+        textNode.className = 'flex-1 pr-3 break-words text-slate-800 dark:text-slate-200';
+        textNode.textContent = text;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'copy-button ml-2 text-slate-500 hover:text-blue-500 p-2 rounded';
+        copyBtn.title = 'Copy';
+        copyBtn.setAttribute('aria-label', `Copy ${title} item ${idx + 1}`);
+        copyBtn.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>`;
+
+        copyBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              // fallback
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            showMessage('Copied to clipboard!');
+          } catch (err) {
+            console.error('Copy failed', err);
+            showMessage('Copy failed');
+          }
+        });
+
+        row.appendChild(textNode);
+        row.appendChild(copyBtn);
+        list.appendChild(row);
+      });
+
+      container.appendChild(list);
+      container.id = `section-${idSuffix}`;
+      return container;
+    }
+
+    // ===== Application Logic =====
+    let campaignData = {
+      headlines35: [],
+      descriptions90: [],
+      callouts: [],
+      structuredSnippets: [],
+      sitelinks: []
+    };
+
+    async function generateAdCopy() {
+      // Basic client-side validation
+      const lawFirmName = document.getElementById('lawFirmName').value.trim();
+      let websiteUrl = document.getElementById('websiteUrl').value.trim();
+      const adGroupName = document.getElementById('adGroupName').value.trim();
+
+      if (!lawFirmName || !websiteUrl || !adGroupName) {
+        showMessage('Please fill out all fields.');
+        return;
+      }
+
+      if (!apiKey) {
+        showMessage('API key not set. Click "Set API Key".');
+        return;
+      }
+
+      // Normalize URL: keep domain/path but remove protocol and trailing slash
+      websiteUrl = websiteUrl.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+
+      setLoading(true);
+
+      // Build the user query instruction
+      const userQuery = `Generate ad copy for a Google Ads campaign.
+Law Firm Name: ${lawFirmName}
+Ad Group Name: ${adGroupName}
+Landing Page URL: ${websiteUrl}
+
+Based on the information available for this URL and the details provided, generate:
+- 20 headlines (max 35 characters)
+- 10 descriptions (max 90 characters)
+- 10 callout extensions (max 25 characters)
+- 10 structured snippets (max 25 characters)
+- 4 sitelink extensions (max 35 characters)
+
+Format the response using markdown headings and bullet points, for example:
+
+## Headlines
+- [Headline 1]
+- [Headline 2]
+
+## Descriptions
+- [Description 1]
+
+## Callout Extensions
+- [Callout 1]
+
+## Structured Snippets
+- [Structured Snippet 1]
+
+## Sitelink Extensions
+- [Sitelink 1]`;
+
+      // Payload structure matches earlier usage. For production, verify exact API schema.
+      const payload = {
+        contents: [{ parts: [{ text: userQuery }] }],
+        // Tools and systemInstruction can be added here if the model accepts them
+      };
+
+      // Abort & timeout handling
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
+      try {
+        const url = `${modelEndpoint}?key=${encodeURIComponent(apiKey)}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          console.error('API error', res.status, errText);
+          showMessage('API error: ' + res.status);
+          setLoading(false);
+          return;
+        }
+
+        const json = await res.json();
+        // Defensive: find candidate text safely
+        const candidate = (json.candidates && json.candidates[0]) || json.output?.[0] || null;
+        let contentText = '';
+        if (candidate && candidate.content && candidate.content.parts && candidate.content.parts[0]) {
+          contentText = candidate.content.parts[0].text || '';
+        } else if (typeof candidate === 'string') {
+          contentText = candidate;
+        } else if (json.output?.[0]?.content?.[0]?.text) {
+          contentText = json.output[0].content[0].text;
+        } else {
+          // as fallback, try to stringify entire response
+          contentText = JSON.stringify(json, null, 2);
+        }
+
+        const parsed = parseAdCopyText(contentText);
+
+        campaignData = {
+          headlines35: parsed.headlines35 || [],
+          descriptions90: parsed.descriptions90 || [],
+          callouts: parsed.callouts || [],
+          structuredSnippets: parsed.structuredSnippets || [],
+          sitelinks: parsed.sitelinks || []
+        };
+
+        renderResults();
+        showMessage('Ad copy generated!');
+      } catch (err) {
+        console.error('Request failed', err);
+        showMessage(err.name === 'AbortError' ? 'Request timed out.' : 'Failed to generate ad copy.');
+      } finally {
+        clearTimeout(timeout);
+        setLoading(false);
+      }
+    }
+
+    function renderResults() {
+      const resultsSection = document.getElementById('results');
+      const container = document.getElementById('sectionsContainer');
+      container.innerHTML = ''; // remove old
+
+      // Create and append sections only when there are items (keeps UI compact)
+      if (campaignData.headlines35?.length) {
+        container.appendChild(renderSection('Headlines (35 chars)', campaignData.headlines35.slice(0, 20), 'headlines'));
+      }
+      if (campaignData.descriptions90?.length) {
+        container.appendChild(renderSection('Descriptions (90 chars)', campaignData.descriptions90.slice(0, 10), 'descriptions'));
+      }
+      if (campaignData.callouts?.length) {
+        container.appendChild(renderSection('Callout Extensions (25 chars)', campaignData.callouts.slice(0, 10), 'callouts'));
+      }
+      if (campaignData.structuredSnippets?.length) {
+        container.appendChild(renderSection('Structured Snippets (25 chars)', campaignData.structuredSnippets.slice(0, 10), 'structuredSnippets'));
+      }
+      if (campaignData.sitelinks?.length) {
+        container.appendChild(renderSection('Sitelink Extensions (35 chars)', campaignData.sitelinks.slice(0, 10), 'sitelinks'));
+      }
+
+      resultsSection.classList.remove('hidden');
+      resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function exportToCsv() {
+      // Flatten to rows of Type, Text
+      const rows = [];
+      (campaignData.headlines35 || []).forEach(v => rows.push(['Headline 35', v]));
+      (campaignData.descriptions90 || []).forEach(v => rows.push(['Description 90', v]));
+      (campaignData.callouts || []).forEach(v => rows.push(['Callout', v]));
+      (campaignData.structuredSnippets || []).forEach(v => rows.push(['Structured Snippet', v]));
+      (campaignData.sitelinks || []).forEach(v => rows.push(['Sitelink', v]));
+
+      if (!rows.length) {
+        showMessage('No data to export.');
+        return;
+      }
+
+      const csv = ['Type,Text', ...rows.map(r => `${escapeCsvValue(r[0])},${escapeCsvValue(r[1])}`)].join('\n');
+      // Use blob instead of data URI for reliability
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ad_copy.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showMessage('CSV exported!');
+    }
+
+    // ===== UI Wiring =====
+    document.getElementById('generateButton').addEventListener('click', generateAdCopy);
+    document.getElementById('exportCsv').addEventListener('click', exportToCsv);
+
+    // API key modal logic
+    const apiKeyModal = document.getElementById('apiKeyModal');
+    document.getElementById('setApiKeyBtn').addEventListener('click', () => {
+      document.getElementById('apiKeyInput').value = apiKey || '';
+      apiKeyModal.classList.remove('hidden');
+      apiKeyModal.style.display = 'flex';
+    });
+    document.getElementById('apiKeyCancel').addEventListener('click', () => {
+      apiKeyModal.classList.add('hidden');
+      apiKeyModal.style.display = 'none';
+    });
+    document.getElementById('apiKeySave').addEventListener('click', () => {
+      apiKey = document.getElementById('apiKeyInput').value.trim();
+      apiKeyModal.classList.add('hidden');
+      apiKeyModal.style.display = 'none';
+      showMessage(apiKey ? 'API key saved (in memory).' : 'API key cleared.');
+    });
+
+    // Keyboard accessibility: close modal with Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !apiKeyModal.classList.contains('hidden')) {
+        apiKeyModal.classList.add('hidden');
+        apiKeyModal.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
